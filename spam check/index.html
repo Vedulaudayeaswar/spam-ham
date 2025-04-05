@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Spam Classifier - Space Vibes</title>
+  <style>
+    :root {
+      --primary: #ffffff;
+      --secondary: #1e90ff;
+      --accent: #ff4081;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body, html {
+      height: 100%;
+      font-family: 'Segoe UI', sans-serif;
+      overflow: hidden;
+      position: relative;
+      color: var(--primary);
+    }
+
+    video#bgVideo {
+      position: fixed;
+      top: 0;
+      left: 0;
+      min-width: 100%;
+      min-height: 100%;
+      object-fit: cover;
+      z-index: -2;
+    }
+
+    .overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: -1;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 600px;
+      width: 90%;
+      margin: 5vh auto;
+      padding: 2rem;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 15px;
+      backdrop-filter: blur(10px);
+      text-align: center;
+    }
+
+    h1 {
+      color: var(--secondary);
+      margin-bottom: 1.5rem;
+      font-size: 2rem;
+    }
+
+    textarea {
+      width: 100%;
+      height: 150px;
+      padding: 1rem;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 8px;
+      font-size: 1rem;
+      margin-bottom: 1.2rem;
+      resize: vertical;
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--primary);
+    }
+
+    textarea:focus {
+      border-color: var(--secondary);
+      outline: none;
+    }
+
+    button {
+      background: var(--secondary);
+      color: white;
+      border: none;
+      padding: 0.9rem 2rem;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    button:hover {
+      background: #63b3ed;
+    }
+
+    .loader {
+      display: none;
+      margin: 1.5rem auto;
+      border: 4px solid rgba(255,255,255,0.3);
+      border-top: 4px solid var(--secondary);
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .result {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      border-radius: 8px;
+      font-weight: bold;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.4s ease, transform 0.4s ease;
+    }
+
+    .result.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .spam {
+      background: rgba(255, 0, 0, 0.2);
+      color: var(--accent);
+    }
+
+    .ham {
+      background: rgba(0, 255, 0, 0.2);
+      color: #00e676;
+    }
+  </style>
+</head>
+<body>
+
+  
+  <video autoplay muted loop id="bgVideo">
+    <source src="./space.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
+
+  <div class="overlay"></div>
+
+  <div class="container">
+    <h1>🚀 Spam Email Classifier</h1>
+    <textarea id="messageInput" placeholder="Type your email message..."></textarea>
+    <button onclick="classifyMessage()" id="classifyBtn" disabled>Check for Spam</button>
+    <div class="loader" id="loader"></div>
+    <div id="result" class="result"></div>
+  </div>
+
+ 
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
+  <script>
+    let pyodideReady = false;
+
+    async function loadPyodideAndPackages() {
+      const pyodide = await loadPyodide();
+      await pyodide.loadPackage(['scikit-learn', 'micropip']);
+
+      await pyodide.runPythonAsync(`
+        import micropip
+        await micropip.install("joblib")
+        import joblib
+        import pickle
+        from sklearn.feature_extraction.text import CountVectorizer
+        from sklearn.naive_bayes import MultinomialNB
+
+        # Sample model and vectorizer
+        messages = ["free entry in 2 a wkly comp", "hello how are you", "win cash now", "let’s catch up tomorrow"]
+        labels = ["spam", "ham", "spam", "ham"]
+
+        vectorizer = CountVectorizer()
+        X = vectorizer.fit_transform(messages)
+        model = MultinomialNB()
+        model.fit(X, labels)
+
+        def predict_spam(text):
+            x = vectorizer.transform([text])
+            return model.predict(x)[0]
+      `);
+
+      window.pyodide = pyodide;
+      pyodideReady = true;
+      document.getElementById("classifyBtn").disabled = false;
+    }
+
+    loadPyodideAndPackages();
+
+    async function classifyMessage() {
+      const input = document.getElementById("messageInput").value.trim();
+      const resultDiv = document.getElementById("result");
+      const loader = document.getElementById("loader");
+
+      if (!input || !pyodideReady) return;
+
+      resultDiv.className = "result";
+      resultDiv.textContent = "";
+      loader.style.display = "block";
+
+      try {
+        const result = await pyodide.runPythonAsync(`predict_spam("""${input.replace(/"/g, '\\"')}""")`);
+        displayResult(result);
+      } catch (err) {
+        displayResult("error");
+        console.error(err);
+      } finally {
+        loader.style.display = "none";
+      }
+    }
+
+    function displayResult(result) {
+      const resultDiv = document.getElementById("result");
+      resultDiv.className = `result show ${result}`;
+      resultDiv.textContent = result === 'spam'
+        ? "🚨 This is SPAM!"
+        : result === 'ham'
+          ? "✅ This is HAM!"
+          : "❗ Error during classification.";
+    }
+  </script>
+</body>
+</html>
