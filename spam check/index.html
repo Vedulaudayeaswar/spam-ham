@@ -6,99 +6,108 @@
   <title>Spam Classifier - Space Vibes</title>
   <style>
     :root {
-      --primary: #ffffff;
+      --primary: #f0f0f0;
       --secondary: #1e90ff;
       --accent: #ff4081;
+      --bg-color: #0d0d0d;
+      --container-bg: rgba(255, 255, 255, 0.1);
+      --container-border: rgba(255, 255, 255, 0.2);
     }
-
+    
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
     }
-
-    body, html {
-      height: 100%;
+    
+    body {
       font-family: 'Segoe UI', sans-serif;
-      overflow: hidden;
-      position: relative;
+      background: var(--bg-color);
       color: var(--primary);
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      overflow: hidden;
     }
+    
 
-    video#bgVideo {
-      position: fixed;
+    body::before {
+      content: "";
+      position: absolute;
       top: 0;
       left: 0;
-      min-width: 100%;
-      min-height: 100%;
-      object-fit: cover;
-      z-index: -2;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(white 1px, transparent 1px);
+      background-size: 50px 50px;
+      opacity: 0.1;
+      animation: moveStars 50s linear infinite;
     }
-
-    .overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.6);
-      z-index: -1;
+    
+    @keyframes moveStars {
+      from { transform: translate(0, 0); }
+      to { transform: translate(-50px, -50px); }
     }
-
+    
     .container {
       position: relative;
-      z-index: 1;
-      max-width: 600px;
-      width: 90%;
-      margin: 5vh auto;
+      background: var(--container-bg);
       padding: 2rem;
-      background: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.2);
+      border: 1px solid var(--container-border);
       border-radius: 15px;
-      backdrop-filter: blur(10px);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
+      width: 90%;
+      max-width: 600px;
       text-align: center;
+      z-index: 1;
+      backdrop-filter: blur(5px);
     }
-
+    
     h1 {
       color: var(--secondary);
       margin-bottom: 1.5rem;
       font-size: 2rem;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
     }
-
+    
     textarea {
       width: 100%;
       height: 150px;
       padding: 1rem;
-      border: 2px solid rgba(255, 255, 255, 0.3);
+      border: 2px solid var(--container-border);
       border-radius: 8px;
       font-size: 1rem;
       margin-bottom: 1.2rem;
       resize: vertical;
       background: rgba(255, 255, 255, 0.05);
       color: var(--primary);
+      transition: border 0.3s;
     }
-
+    
     textarea:focus {
       border-color: var(--secondary);
       outline: none;
     }
-
+    
     button {
       background: var(--secondary);
-      color: white;
+      color: var(--bg-color);
       border: none;
       padding: 0.9rem 2rem;
       border-radius: 8px;
       font-size: 1rem;
       font-weight: bold;
       cursor: pointer;
-      transition: 0.3s;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
     }
-
+    
     button:hover {
-      background: #63b3ed;
+      transform: translateY(-3px);
+      box-shadow: 0 5px 15px rgba(30, 144, 255, 0.5);
     }
-
+    
     .loader {
       display: none;
       margin: 1.5rem auto;
@@ -109,11 +118,12 @@
       height: 30px;
       animation: spin 1s linear infinite;
     }
-
+    
     @keyframes spin {
+      from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
     }
-
+    
     .result {
       margin-top: 1.5rem;
       padding: 1rem;
@@ -123,33 +133,24 @@
       transform: translateY(10px);
       transition: opacity 0.4s ease, transform 0.4s ease;
     }
-
+    
     .result.show {
       opacity: 1;
       transform: translateY(0);
     }
-
+    
     .spam {
-      background: rgba(255, 0, 0, 0.2);
+      background: rgba(211, 47, 47, 0.2);
       color: var(--accent);
     }
-
+    
     .ham {
-      background: rgba(0, 255, 0, 0.2);
-      color: #00e676;
+      background: rgba(56, 142, 60, 0.2);
+      color: #4caf50;
     }
   </style>
 </head>
 <body>
-
-  
-  <video autoplay muted loop id="bgVideo">
-    <source src="./space.mp4" type="video/mp4">
-    Your browser does not support the video tag.
-  </video>
-
-  <div class="overlay"></div>
-
   <div class="container">
     <h1>🚀 Spam Email Classifier</h1>
     <textarea id="messageInput" placeholder="Type your email message..."></textarea>
@@ -157,69 +158,124 @@
     <div class="loader" id="loader"></div>
     <div id="result" class="result"></div>
   </div>
-
- 
+  
   <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
-  <script>
-    let pyodideReady = false;
-
-    async function loadPyodideAndPackages() {
-      const pyodide = await loadPyodide();
-      await pyodide.loadPackage(['scikit-learn', 'micropip']);
-
-      await pyodide.runPythonAsync(`
-        import micropip
-        await micropip.install("joblib")
-        import joblib
-        import pickle
-        from sklearn.feature_extraction.text import CountVectorizer
-        from sklearn.naive_bayes import MultinomialNB
-
-        # Sample model and vectorizer
-        messages = ["free entry in 2 a wkly comp", "hello how are you", "win cash now", "let’s catch up tomorrow"]
-        labels = ["spam", "ham", "spam", "ham"]
-
-        vectorizer = CountVectorizer()
-        X = vectorizer.fit_transform(messages)
-        model = MultinomialNB()
-        model.fit(X, labels)
-
-        def predict_spam(text):
-            x = vectorizer.transform([text])
-            return model.predict(x)[0]
-      `);
-
-      window.pyodide = pyodide;
-      pyodideReady = true;
-      document.getElementById("classifyBtn").disabled = false;
-    }
-
-    loadPyodideAndPackages();
-
-    async function classifyMessage() {
-      const input = document.getElementById("messageInput").value.trim();
-      const resultDiv = document.getElementById("result");
-      const loader = document.getElementById("loader");
-
-      if (!input || !pyodideReady) return;
-
-      resultDiv.className = "result";
-      resultDiv.textContent = "";
-      loader.style.display = "block";
-
+  <script type="text/javascript">
+    let pyodide;
+    
+    async function initializePyodide() {
+      showLoader();
+      console.log("Initializing Pyodide...");
       try {
-        const result = await pyodide.runPythonAsync(`predict_spam("""${input.replace(/"/g, '\\"')}""")`);
-        displayResult(result);
-      } catch (err) {
-        displayResult("error");
-        console.error(err);
-      } finally {
-        loader.style.display = "none";
-      }
-    }
+        pyodide = await loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.23.4/full/" });
+        console.log("Pyodide loaded.");
+        await pyodide.loadPackage("micropip");
+        await pyodide.runPythonAsync(`
+import micropip
+await micropip.install(['pandas', 'scikit-learn', 'numpy'])
+        `);
+        console.log("Required packages installed.");
+        await pyodide.runPythonAsync(`
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.naive_bayes import MultinomialNB
+from io import StringIO
 
+csv_data = """Category,Message
+ham,"Go until jurong point, crazy.. Available only in bugis n great world la e buffet... Cine there got amore wat..."
+ham,"Ok lar... Joking wif u oni..."
+spam,"Free entry in 2 a wkly comp to win FA Cup final tkts 21st May 2005. Text FA to 87121 to receive entry question(std txt rate). T&C's apply 08452810075over18's"
+ham,"U dun say so early hor... U c already then say..."
+ham,"Nah I don't think he goes to work tomorrow he's the big boss."
+spam,"England v Macedonia - dont miss goals/team news. Txt ur national team to 87077 eg ENGLAND to 87077 Try:WALES, SCOTLAND 4txt/ú1.20 POBOXox36504W45WQ 16+"
+ham,"Is that seriously how you spell his name?"
+ham,"I’m gonna try to get a little sleep"
+spam,"FreeMsg Hey there darling it's been 3 week's now and still no word back! I'd really love to chat please reply or call me on 077xxxxxxxxx"
+ham,"Ok i'm coming..."
+ham,"Just kidding, gonna go to bed soon, night"
+spam,"URGENT! You have won a 1 week FREE membership in our £100,000 Prize Jackpot! Txt the word: CLAIM to No: 81461 T&C www.dbuk.net LCCLTD POBOX 4403LDNW1A7RW18"
+ham,"Did you hear about the new “Divorce Barbie”? It comes with Ken’s car."
+ham,"I am going to the store now."
+spam,"XXXMobileMovieClub: To use your credit, click the WAP link in the next txt message or click here>> http://wap.xxxmobilemovieclub.com?n=QJKGIGT"
+ham,"Okay, I'll be there in a bit."
+ham,"Hello! How's you and your sister? Did you have a nice holiday?"
+spam,"Hi babe its Chloe, how r u? I was horny and wanted to see u naughty ;)"
+ham,"Well done England! Hope you enjoyed it. See you tomorrow."
+ham,"No problem, just let me know when you're ready."
+spam,"U have won a guaranteed £200 award or even £1000 cash prize. To claim yours call 09050000327"
+ham,"Lol. Well that's nice. Too bad I gotta head out now."
+ham,"Yeah, I got a new phone. What number were you texting?"
+spam,"Free tones Hope you are feeling great. Text TONIGHT to 8007 for your FREE tone."
+ham,"Why don't you wait 'til at least wednesday to see if you get your pay?"
+ham,"Yeah sure, give me a couple minutes"
+spam,"SMS. ac Sptv: The New Jersey Devils and the Detroit Red Wings play Ice Hockey. Game time is 8:00 pm. To watch this exciting game..."
+ham,"Sorry, I can't talk right now, I'm in a meeting."
+ham,"I'm in a meeting, call you later."
+spam,"FreeMsg Why haven't you replied to my text? I'm lonely and waiting for you."
+ham,"What's up? How's your day going?"
+ham,"I just got home. I'll call you in a bit."
+spam,"You have won a prize! Claim it now by calling 09061702121. Costs £1.50 per minute."
+ham,"I'm watching a movie."
+ham,"Did you finish your homework?"
+spam,"Your account has been credited with £500. To claim, call us on 08718726978"
+ham,"I'm going to take a shower."
+ham,"Let me know if you need anything else."
+spam,"URGENT! We are trying to contact you. Last chance to claim your VIP ticket. Call 09061749602"
+ham,"I'll be there in 5 minutes."
+ham,"Thanks for the help!"
+spam,"Congratulations! You have won a £1000 gift card. To redeem, visit www.example.com."
+ham,"Have a great day!"
+ham,"Talk to you later."
+spam,"Your mobile number has won £5000, to claim call 09050000321"
+ham,"Good night!"
+ham,"See you tomorrow!"
+spam,"You have been selected to receive a free iPhone 15! Click here to claim: www.free-iphone.com."
+"""
+dataset = pd.read_csv(StringIO(csv_data))
+dataset['spam'] = dataset['Category'].apply(lambda x: 1 if x == 'spam' else 0)
+x_train, x_test, y_train, y_test = train_test_split(dataset.Message, dataset.spam, test_size=0.25, random_state=42)
+global cv
+cv = CountVectorizer()
+x_train_count = cv.fit_transform(x_train.values)
+global model
+model = MultinomialNB()
+model.fit(x_train_count, y_train)
+        `);
+        console.log("Model trained. You can now use the classifier.");
+        document.getElementById('classifyBtn').disabled = false;
+      } catch (error) {
+        console.error('Error during Pyodide initialization:', error);
+      }
+      hideLoader();
+    }
+    
+    async function classifyMessage() {
+      const message = document.getElementById('messageInput').value;
+      if (!message) {
+        console.warn("No message entered.");
+        return;
+      }
+      showLoader();
+      console.log("Classifying message:", message);
+      try {
+        pyodide.globals.set("input_message", message);
+        const result = await pyodide.runPythonAsync(`
+message_count = cv.transform([input_message])
+prediction = model.predict(message_count)
+"spam" if prediction[0] == 1 else "ham"
+        `);
+        console.log("Classification result:", result);
+        displayResult(result);
+      } catch (error) {
+        console.error('Classification error:', error);
+        displayResult('error');
+      }
+      hideLoader();
+    }
+    
     function displayResult(result) {
-      const resultDiv = document.getElementById("result");
+      const resultDiv = document.getElementById('result');
       resultDiv.className = `result show ${result}`;
       resultDiv.textContent = result === 'spam'
         ? "🚨 This is SPAM!"
@@ -227,6 +283,16 @@
           ? "✅ This is HAM!"
           : "❗ Error during classification.";
     }
+    
+    function showLoader() {
+      document.getElementById('loader').style.display = 'block';
+    }
+    
+    function hideLoader() {
+      document.getElementById('loader').style.display = 'none';
+    }
+    
+    window.addEventListener('load', initializePyodide);
   </script>
 </body>
 </html>
